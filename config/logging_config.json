@@ -19,7 +19,7 @@
       "class": "logging.handlers.RotatingFileHandler",
       "maxBytes": 1000,
       "backupCount": 5,
-      "filename": "bot.log",
+      "filename": "logs/rasberrybot.log",
       "encoding": "utf8"
     }
   },

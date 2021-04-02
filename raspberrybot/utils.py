@@ -16,13 +16,17 @@ def system_call_with_response(command):
 
 
 def get_local_ip():
-    ips = system_call_with_response('ifconfig | grep "inet addr" | cut -d: -f2 | cut -d" " -f1')
+    ips = system_call_with_response('hostname -I')
     return ips
 
 
 def get_public_ip():
     with urlopen("http://ipecho.net/plain") as f:
-        return f.read().decode("utf-8")
+        rxval = f.read().decode("utf-8")
+        if(len(rxval)>0):
+            return rxval
+        else:
+            return "Could not determine the Public IP"
 
 
 def get_uptime():
@@ -37,10 +41,18 @@ def torrent_add(url):
 
 
 def torrent_remove(torrent_id):
-    command = "transmission-remote -n %s:%s -t %d --remove-and-delete" % \
+    command = "transmission-remote -n %s:%s -t %d -i" % \
               (config.TRANSMISSION_USER, config.TRANSMISSION_PASSWORD, int(torrent_id))
     response = system_call_with_response(command)
-    log.debug("Response from remove torrent: %s", response)
+    if(len(response)==0):
+        response = "This torrent does not exist"
+    else:
+        command = "transmission-remote -n %s:%s -t %d --remove-and-delete" % \
+                  (config.TRANSMISSION_USER, config.TRANSMISSION_PASSWORD, int(torrent_id))
+        response = system_call_with_response(command)
+        log.debug("Response from remove torrent: %s", response)
+        if("success" in response):
+            response = "Successfully removed torrent"
     return response
 
 
@@ -61,4 +73,6 @@ def torrent_info(torrent_id):
     command = "transmission-remote -n %s:%s -t %d -i" % \
               (config.TRANSMISSION_USER, config.TRANSMISSION_PASSWORD, int(torrent_id))
     response = system_call_with_response(command)
+    if(len(response)<=0):
+        response = "Couldn't get info for this torrent"
     return response

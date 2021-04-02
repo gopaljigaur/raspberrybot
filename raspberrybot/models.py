@@ -32,7 +32,11 @@ class TorrentStatus:
 class Torrent:
     def __init__(self, *args):
         log.debug("Torrent args: %s", args)
-        self.id = int(args[0])
+        if('*' in args[0]):
+            self.name = args[8] + ' {{Error in torrent}}'
+        else:
+            self.name = args[8]
+        self.id = int(args[0].replace('*',''))
         self.done = args[1]
         self.downloaded = args[2]
         self.eta = args[3]
@@ -40,7 +44,6 @@ class Torrent:
         self.down = args[5]
         self.ratio = args[6]
         self.status = TorrentStatus.string_to_status(args[7])
-        self.name = args[8]
 
     def format_telegram(self):
         string = "*[{t.id}]* _{t.name}_\n"

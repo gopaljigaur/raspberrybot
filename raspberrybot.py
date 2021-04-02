@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import logging.config
 import threading
@@ -24,22 +26,26 @@ class TelegramBot(telebot.TeleBot):
         self.downloading_torrents = set()
         self._user_id = self.read_user_id()
         if self._user_id:
-            log.info("Listening to user %d" % self.user_id)
+            log.info("Listening to users\n")
+            log.info(self.user_id)
             self.send_init_message()
             self.check_if_downloaded()
 
     def send_init_message(self):
         log.info("Sending init message")
-        self.send_message(self.user_id, "Raspberry Pi powered on")
+        for id_item in self.user_id:
+            self.send_message(id_item, "Raspberry Pi powered on")
+        #self.send_message(self.user_id, "Raspberry Pi powered on")
 
     @staticmethod
     def read_user_id():
         try:
             with open(config.USER_ID_FILE, 'r') as user_id_file:
                 log.info("Reading user_id from file '%s'" % config.USER_ID_FILE)
-                return int(user_id_file.readline())
+                filrd = list(map(int, user_id_file.readline().split()))
+                return filrd
         except IOError as e:
-            log.warn("Read user fail: %s" % e)
+            log.warning("Read user fail: %s" % e)
             return None
 
     @property
@@ -55,7 +61,7 @@ class TelegramBot(telebot.TeleBot):
             user_id_file.write(str(self.user_id))
 
     def validate_user(self, message):
-        return message.chat.id == self.user_id
+        return message.chat.id in self.user_id
 
     def check_if_downloaded(self):
         torrents = utils.torrent_list()
@@ -69,7 +75,9 @@ class TelegramBot(telebot.TeleBot):
         recently_completed = (self.downloading_torrents - torrents_by_status["downloading"]) & torrents_by_status["done"]
         self.downloading_torrents = torrents_by_status["downloading"]
         for t in recently_completed:
-            self.send_message(self._user_id, "Torrent '_%s_' has been downloaded " % t.name + EMOJI_THUMBS_UP, parse_mode="Markdown")
+            for id_item in self._user_id:
+                self.send_message(id_item, "Torrent '_%s_' has been downloaded " % t.name + EMOJI_THUMBS_UP, parse_mode="Markdown")
+            #self.send_message(self._user_id, "Torrent '_%s_' has been downloaded " % t.name + EMOJI_THUMBS_UP, parse_mode="Markdown")
         threading.Timer(INTERVAL, self.check_if_downloaded).start()
 
 
@@ -88,7 +96,7 @@ def send_welcome(message):
         bot.reply_to(message, "Welcome back!")
     else:
         log.info("Invalid user %d" % message.chat.id)
-        bot.reply_to(message, "Invalid user. The Bot is linked with other user %s" % bot.user_id)
+        bot.reply_to(message, "Invalid user")
 
 
 @bot.message_handler(commands=['public_ip'], func=bot.validate_user)
@@ -109,13 +117,13 @@ def get_uptime(message):
     bot.reply_to(message, utils.get_uptime())
 
 
-@bot.message_handler(commands=['torrent_add'], func=bot.validate_user)
+@bot.message_handler(commands=['add'], func=bot.validate_user)
 def torrent_add(message):
     log.info("Handling command add torrent - %s" % message.text)
     args = message.text.split()
     if len(args) < 2:
-        log.warn("Missing torrent URL")
-        bot.reply_to(message, "Missing torrent URL. Usage: /torrent_add [URL]")
+        log.warning("Missing torrent URL")
+        bot.reply_to(message, "Missing torrent URL. Usage: /add [URL]")
         return
     url = args[1]
     response = utils.torrent_add(url)
@@ -127,7 +135,7 @@ def torrent_add(message):
         bot.reply_to(message, response)
 
 
-@bot.message_handler(commands=['torrent_list'], func=bot.validate_user)
+@bot.message_handler(commands=['list'], func=bot.validate_user)
 def torrent_list_by_status(message):
     log.info("Handling command list torrents - %s" % message.text)
     torrents = utils.torrent_list()
@@ -143,29 +151,30 @@ def torrent_list_by_status(message):
         response += "*%s*\n" % TorrentStatus.conversion_to_string[key]
         for t in torrents_by_type[key]:
             response += t.format_telegram() + "\n"
-
+    if(len(response)==0):
+        response="No active torrents"
     bot.reply_to(message, response, parse_mode="Markdown")
 
 
-@bot.message_handler(commands=['torrent_info'], func=bot.validate_user)
+@bot.message_handler(commands=['info'], func=bot.validate_user)
 def torrent_info(message):
     log.info("Handling command info torrent - %s" % message.text)
     args = message.text.split()
     if len(args) < 2:
-        log.warn("Missing torrent ID")
-        bot.reply_to(message, "Missing torrent ID. Usage: /torren_info [TORRENT_ID]")
+        log.warning("Missing torrent ID")
+        bot.reply_to(message, "Missing torrent ID. Usage: /info [TORRENT_ID]")
         return
     torrent_id = args[1]
     bot.reply_to(message, utils.torrent_info(torrent_id))
 
 
-@bot.message_handler(commands=['torrent_remove'], func=bot.validate_user)
+@bot.message_handler(commands=['remove'], func=bot.validate_user)
 def torrent_remove(message):
     log.info("Handling command remove torrent - %s" % message.text)
     args = message.text.split()
     if len(args) < 2:
-        log.warn("Missing torrent ID")
-        bot.reply_to(message, "Missing torrent ID. Usage: /torrent_remove [TORRENT_ID]")
+        log.warning("Missing torrent ID")
+        bot.reply_to(message, "Missing torrent ID. Usage: /remove [TORRENT_ID]")
         return
     torrent_id = args[1]
     bot.reply_to(message, utils.torrent_remove(torrent_id))
@@ -173,13 +182,13 @@ def torrent_remove(message):
 
 @bot.message_handler(func=bot.validate_user)
 def invalid_command(message):
-    log.warn("Invalid command - %s " % message.text)
+    log.warning("Invalid command - %s " % message.text)
     bot.reply_to(message, "Invalid command '%s'" % message.text)
 
 
 @bot.message_handler(func=lambda m: True)
 def unauthorized_user(message):
-    log.warn("Unauthorized user - %s:%s " % (message.chat.id, message.text))
+    log.warning("Unauthorized user - %s:%s " % (message.chat.id, message.text))
     bot.reply_to(message, "User not allowed")
 
 
